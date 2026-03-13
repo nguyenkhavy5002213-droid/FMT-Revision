@@ -31,6 +31,17 @@ async function readData() {
         "ibm": { name: "IBM Revision", sheetUrl: "" }
       };
     }
+
+    // Migrate old session format if needed
+    if (parsed.sessions && Object.keys(parsed.sessions).length > 0) {
+      const firstSession = Object.values(parsed.sessions)[0];
+      if (typeof firstSession === 'string') {
+        console.log('Old session format detected, clearing sessions...');
+        parsed.sessions = {};
+        await writeData(parsed);
+      }
+    }
+
     return parsed;
   } catch (e) {
     return { 
@@ -202,14 +213,18 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'nguyenkhavy5002213@gmail.com';
       if (!subjectId) return res.status(400).json({ error: 'Subject ID is required' });
       
       const normalizedEmail = email.toLowerCase().trim();
-      const isAdmin = normalizedEmail === ADMIN_EMAIL.toLowerCase().trim() || normalizedEmail === 'nguyenkhavy5002213@gmail.com';
+      const adminEmails = [
+        ADMIN_EMAIL.toLowerCase().trim(),
+        'nguyenkhavy5002213@gmail.com'
+      ];
+      const isAdmin = adminEmails.includes(normalizedEmail);
       let isAllowed = isAdmin;
 
       const data = await readData();
       const subject = data.subjects[subjectId];
 
       if (!subject) {
-        return res.status(404).json({ error: 'Subject not found' });
+        return res.status(404).json({ error: 'Môn học không tồn tại.' });
       }
 
       if (!isAdmin) {
@@ -218,11 +233,24 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'nguyenkhavy5002213@gmail.com';
           return res.json({ success: false, error: 'Hệ thống chưa được cấu hình danh sách email cho môn học này. Vui lòng liên hệ Quản trị viên.' });
         }
         
-        const allowedEmails = await getAllowedEmails(subjectId, subject.sheetUrl);
-        isAllowed = allowedEmails.includes(normalizedEmail);
-        
-        if (!isAllowed) {
-          console.log(`Login denied for ${normalizedEmail} on ${subjectId}: Not in sheet. Sheet has ${allowedEmails.length} emails.`);
+        try {
+          const allowedEmails = await getAllowedEmails(subjectId, subject.sheetUrl);
+          isAllowed = allowedEmails.includes(normalizedEmail);
+          
+          if (!isAllowed) {
+            console.log(`Login denied for ${normalizedEmail} on ${subjectId}: Not in sheet. Sheet has ${allowedEmails.length} emails.`);
+            
+            // Check if sheet fetch returned 0 emails (likely a public access issue)
+            if (allowedEmails.length === 0) {
+              return res.json({ 
+                success: false, 
+                error: 'Không thể tải danh sách email từ Google Sheet. Vui lòng đảm bảo Sheet đã được chia sẻ ở chế độ "Bất kỳ ai có liên kết" (Anyone with the link can view).' 
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error during allowed emails check:', error);
+          return res.json({ success: false, error: 'Lỗi khi kiểm tra quyền truy cập. Vui lòng thử lại sau.' });
         }
       }
 

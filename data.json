@@ -1,12 +1,5 @@
 {
-  "sessions": {
-    "nguyenkhavy5002213@gmail.com": "mmnbihc42oizxxgay83",
-    "nguyenkhavy5002213@gmail.com_obe": {
-      "token": "mmowdq92oza50p2jgw",
-      "lastActive": 1773406589696,
-      "subjectId": "obe"
-    }
-  },
+  "sessions": {},
   "subjects": {
     "obe": {
       "name": "Organizational Behavior (OBE)",

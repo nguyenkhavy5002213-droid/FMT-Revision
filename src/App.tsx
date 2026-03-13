@@ -6,8 +6,7 @@ import { ChatBox } from './components/ChatBox';
 import { AuthScreen } from './components/AuthScreen';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AdminPanel } from './components/AdminPanel';
-import { knowledgeBase } from './data/knowledgeBase';
-import { initialQuiz, QuizQuestion } from './data/initialQuiz';
+import { subjects, SubjectData, ChapterData, Section, QuizQuestion } from './data';
 import { generateAdaptiveQuiz } from './services/geminiService';
 import { BookOpen, BrainCircuit, Moon, Sun, LogOut, Loader2, Shield } from 'lucide-react';
 
@@ -15,30 +14,56 @@ function AppContent() {
   const { user, isAdmin, loading, logout } = useAuth();
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [quizState, setQuizState] = useState<'playing' | 'results'>('playing');
-  const [selectedChapter, setSelectedChapter] = useState<number>(1);
+  const [selectedChapter, setSelectedChapter] = useState<number | string>(1);
   
+  const currentSubject = useMemo(() => {
+    if (!user) return null;
+    return subjects.find(s => s.id === user.subjectId) || subjects.find(s => s.id === 'obe');
+  }, [user]);
+
+  const chapters = useMemo(() => {
+    if (!currentSubject) return [];
+    return currentSubject.chapters.map(c => c.id);
+  }, [currentSubject]);
+
+  useEffect(() => {
+    if (chapters.length > 0 && !chapters.includes(selectedChapter)) {
+      setSelectedChapter(chapters[0]);
+    }
+  }, [chapters, selectedChapter]);
+
+  const currentChapterData = useMemo(() => {
+    if (!currentSubject) return null;
+    return currentSubject.chapters.find(c => String(c.id) === String(selectedChapter));
+  }, [currentSubject, selectedChapter]);
+
+  const filteredKnowledgeBase = useMemo(() => {
+    if (!currentSubject) return [];
+    return currentSubject.chapters.flatMap(c => c.theory);
+  }, [currentSubject]);
+
+  const filteredInitialQuiz = useMemo(() => {
+    if (!currentSubject) return [];
+    return currentSubject.chapters.flatMap(c => c.quiz);
+  }, [currentSubject]);
+
   const chapterQuestions = useMemo(() => {
-    return initialQuiz.filter(q => q.chapter === selectedChapter);
-  }, [selectedChapter]);
+    return currentChapterData?.quiz || [];
+  }, [currentChapterData]);
 
   const [currentQuestions, setCurrentQuestions] = useState<QuizQuestion[]>([]);
   const [score, setScore] = useState(0);
   const [weakTopics, setWeakTopics] = useState<string[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  
-  const chapters = useMemo(() => {
-    const chapterSet = new Set<number>();
-    knowledgeBase.forEach(s => chapterSet.add(s.chapter));
-    initialQuiz.forEach(q => chapterSet.add(q.chapter));
-    return Array.from(chapterSet).sort((a, b) => a - b);
-  }, [knowledgeBase, initialQuiz]);
+  const [activeQuizFilter, setActiveQuizFilter] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentQuestions(chapterQuestions);
     setQuizState('playing');
     setScore(0);
     setWeakTopics([]);
+    setActiveQuizFilter(null);
   }, [chapterQuestions]);
 
   useEffect(() => {
@@ -51,14 +76,14 @@ function AppContent() {
 
   // Stringify knowledge base for AI context
   const knowledgeBaseContext = useMemo(() => {
-    const filteredKB = knowledgeBase.filter(s => s.chapter === selectedChapter);
+    const filteredKB = filteredKnowledgeBase.filter(s => s.chapter === selectedChapter);
     return JSON.stringify(filteredKB, null, 2);
-  }, [selectedChapter, knowledgeBase]);
+  }, [selectedChapter, filteredKnowledgeBase]);
 
   const handleLocateKnowledge = (sectionId: string) => {
     setHighlightedId(sectionId);
-    // Clear highlight after 3 seconds
-    setTimeout(() => setHighlightedId(null), 3000);
+    // Clear highlight after 5 seconds
+    setTimeout(() => setHighlightedId(null), 5000);
   };
 
   const handleQuizComplete = (finalScore: number, topics: string[]) => {
@@ -72,6 +97,7 @@ function AppContent() {
     setQuizState('playing');
     setScore(0);
     setWeakTopics([]);
+    setActiveQuizFilter('Ôn tập AI (Adaptive)');
   };
 
   const handleReset = () => {
@@ -79,7 +105,10 @@ function AppContent() {
     setQuizState('playing');
     setScore(0);
     setWeakTopics([]);
+    setActiveQuizFilter(null);
   };
+
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
 
   const handleStartSpecificQuiz = async (sectionId: string, topic: string) => {
     // Scroll to quiz section
@@ -91,14 +120,17 @@ function AppContent() {
     setQuizState('playing');
     setScore(0);
     setWeakTopics([]);
+    setActiveQuizFilter(topic);
     
     // 1. Try to find existing questions for this section in the 50 questions
-    const existingQuestions = initialQuiz.filter(q => q.relatedSectionId === sectionId || q.relatedSectionId.startsWith(sectionId + '.'));
+    const existingQuestions = filteredInitialQuiz.filter(q => q.relatedSectionId === sectionId || q.relatedSectionId.startsWith(sectionId + '.'));
     
     if (existingQuestions.length > 0) {
       setCurrentQuestions(existingQuestions);
     } else {
       // 2. Fallback: Generate questions for this specific topic using AI
+      setIsGeneratingQuiz(true);
+      setCurrentQuestions([]); // Clear current questions while loading
       try {
         const newQuestions = await generateAdaptiveQuiz([topic], knowledgeBaseContext);
         if (newQuestions && newQuestions.length > 0) {
@@ -106,8 +138,18 @@ function AppContent() {
         }
       } catch (error) {
         console.error("Error generating specific quiz:", error);
+      } finally {
+        setIsGeneratingQuiz(false);
       }
     }
+  };
+
+  const handleClearFilter = () => {
+    setActiveQuizFilter(null);
+    setCurrentQuestions(chapterQuestions);
+    setQuizState('playing');
+    setScore(0);
+    setWeakTopics([]);
   };
 
   if (loading) {
@@ -123,16 +165,13 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-200 dark:selection:bg-indigo-900 selection:text-indigo-900 dark:selection:text-indigo-100 transition-colors duration-300">
+    <div className="min-h-screen bg-pastel-offwhite-1 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-pastel-blue-1/50 dark:selection:bg-sky-900 selection:text-slate-900 dark:selection:text-sky-100 transition-colors duration-300">
       {/* Header */}
-      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30 shadow-sm transition-colors duration-300">
+      <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-pastel-mint-1 dark:border-slate-700 sticky top-0 z-30 shadow-sm transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-inner">
-              <BrainCircuit className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-emerald-600 dark:from-indigo-400 dark:to-emerald-400">
-              OBE Revision
+            <h1 className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-pastel-teal-2 to-pastel-pink-1 dark:from-sky-400 dark:to-pink-400">
+              {user.subjectId === 'ibm' ? 'IBM' : (user.subjectName || 'OBE Revision')}
             </h1>
           </div>
           <div className="flex items-center gap-4">
@@ -140,19 +179,19 @@ function AppContent() {
               {isAdmin && (
                 <button
                   onClick={() => setShowAdminPanel(true)}
-                  className="hidden md:flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                  className="hidden md:flex items-center gap-2 px-3 py-1.5 text-sm font-bold text-slate-700 dark:text-sky-400 bg-pastel-mint-1 rounded-lg hover:bg-pastel-turquoise-1 transition-colors"
                   title="Quản lý truy cập"
                 >
                   <Shield className="w-4 h-4" />
                   Admin
                 </button>
               )}
-              <span className="text-sm font-medium text-slate-600 dark:text-slate-300 hidden md:block">
+              <span className="text-sm font-bold text-slate-600 dark:text-slate-300 hidden md:block">
                 {user.email}
               </span>
               <button
                 onClick={logout}
-                className="p-2 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                className="p-2 text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 transition-colors rounded-lg hover:bg-pastel-pink-2 dark:hover:bg-slate-700"
                 title="Đăng xuất"
               >
                 <LogOut className="w-5 h-5" />
@@ -164,17 +203,17 @@ function AppContent() {
 
       {/* Chapter Selection */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-4">
-          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Chọn Chương:</span>
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-pastel-yellow-1 dark:border-slate-700 flex flex-wrap items-center gap-4">
+          <span className="text-sm font-extrabold text-slate-500 dark:text-amber-400 uppercase tracking-wider">Chọn Chương:</span>
           <div className="flex gap-2">
             {chapters.map((ch) => (
               <button
                 key={ch}
                 onClick={() => setSelectedChapter(ch)}
-                className={`px-6 py-2 rounded-lg font-bold transition-all duration-200 ${
+                className={`px-6 py-2 rounded-xl font-extrabold transition-all duration-200 ${
                   selectedChapter === ch
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105'
-                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                    ? 'bg-pastel-yellow-1 text-slate-800 shadow-lg shadow-pastel-yellow-1/50 scale-105'
+                    : 'bg-pastel-yellow-1/20 dark:bg-slate-700 text-slate-600 dark:text-amber-300 hover:bg-pastel-yellow-1/40 dark:hover:bg-slate-600'
                 }`}
               >
                 Chương {ch}
@@ -192,6 +231,7 @@ function AppContent() {
             highlightedId={highlightedId} 
             selectedChapter={selectedChapter} 
             onStartSpecificQuiz={handleStartSpecificQuiz}
+            knowledgeBase={filteredKnowledgeBase}
           />
         </div>
 
@@ -199,10 +239,13 @@ function AppContent() {
         <div id="quiz-section" className="min-h-[600px] scroll-mt-20">
           {quizState === 'playing' ? (
             <QuizSection 
-              key={selectedChapter + (currentQuestions[0]?.topic || '')}
+              key={`${selectedChapter}-${activeQuizFilter || 'all'}`}
               questions={currentQuestions} 
               onLocateKnowledge={handleLocateKnowledge}
               onComplete={handleQuizComplete}
+              isLoading={isGeneratingQuiz}
+              activeFilter={activeQuizFilter}
+              onClearFilter={handleClearFilter}
             />
           ) : (
             <ResultsSection 
@@ -220,7 +263,7 @@ function AppContent() {
       {/* Floating Theme Toggle */}
       <button
         onClick={() => setIsDarkMode(!isDarkMode)}
-        className="fixed bottom-6 right-24 p-4 rounded-full shadow-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-amber-400 hover:scale-110 transition-all duration-300 z-40"
+        className="fixed bottom-6 right-24 p-4 rounded-full shadow-xl bg-white dark:bg-slate-800 border border-pastel-pink-1 dark:border-slate-700 text-pastel-pink-1 dark:text-amber-400 hover:scale-110 transition-all duration-300 z-40"
         title="Toggle Dark/Light Mode"
       >
         {isDarkMode ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}

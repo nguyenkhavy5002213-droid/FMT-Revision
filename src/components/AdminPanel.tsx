@@ -1,14 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Shield, Link as LinkIcon, CheckCircle2, X, AlertCircle, RefreshCw } from 'lucide-react';
+import { Shield, Link as LinkIcon, CheckCircle2, X, AlertCircle, RefreshCw, BookOpen, Plus, Save } from 'lucide-react';
 
 interface AdminPanelProps {
   onClose: () => void;
 }
 
+interface Subject {
+  id: string;
+  name: string;
+  sheetUrl: string;
+}
+
 export function AdminPanel({ onClose }: AdminPanelProps) {
   const { isAdmin } = useAuth();
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
   const [sheetUrl, setSheetUrl] = useState('');
+  const [newSubjectId, setNewSubjectId] = useState('');
+  const [newSubjectName, setNewSubjectName] = useState('');
+  const [isAddingSubject, setIsAddingSubject] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [testResult, setTestResult] = useState<{ count: number; emails: string[] } | null>(null);
@@ -19,32 +30,37 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
 
   useEffect(() => {
     if (!isAdmin) return;
-
-    // Load existing settings and active users
-    const loadData = async () => {
-      try {
-        // Load sheet URL
-        const resSheet = await fetch('/api/settings/sheet');
-        const dataSheet = await resSheet.json();
-        if (dataSheet.url) {
-          setSheetUrl(dataSheet.url);
-          fetchEmails();
-        } else {
-          setSheetUrl('https://docs.google.com/spreadsheets/d/1Nqd43yAtTjbPySERlJu_82aqGfyH1yoUTq54X8pI_cw/edit?usp=sharing');
-        }
-
-        // Load active users
-        fetchActiveUsers();
-      } catch (error) {
-        console.error("Error loading data:", error);
-      }
-    };
-
-    loadData();
-    
-    const interval = setInterval(fetchActiveUsers, 10000); // Refresh active users every 10s
+    loadSubjects();
+    fetchActiveUsers();
+    const interval = setInterval(fetchActiveUsers, 10000);
     return () => clearInterval(interval);
   }, [isAdmin]);
+
+  const loadSubjects = async () => {
+    try {
+      const res = await fetch('/api/subjects');
+      const data = await res.json();
+      if (data.subjects) {
+        setSubjects(data.subjects);
+        if (data.subjects.length > 0 && !selectedSubjectId) {
+          handleSelectSubject(data.subjects[0].id, data.subjects);
+        } else if (selectedSubjectId) {
+          handleSelectSubject(selectedSubjectId, data.subjects);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading subjects:", error);
+    }
+  };
+
+  const handleSelectSubject = (id: string, subjectList: Subject[] = subjects) => {
+    setSelectedSubjectId(id);
+    const subject = subjectList.find(s => s.id === id);
+    if (subject) {
+      setSheetUrl(subject.sheetUrl || '');
+      fetchEmails(id);
+    }
+  };
 
   const fetchActiveUsers = async () => {
     try {
@@ -64,10 +80,11 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     }
   };
 
-  const fetchEmails = async () => {
+  const fetchEmails = async (subjectId: string = selectedSubjectId) => {
+    if (!subjectId) return;
     setIsTesting(true);
     try {
-      const res = await fetch('/api/settings/emails');
+      const res = await fetch(`/api/settings/emails?subjectId=${subjectId}`);
       const data = await res.json();
       if (data.emails) {
         setTestResult({
@@ -82,9 +99,9 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSaveSheet = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sheetUrl) return;
+    if (!sheetUrl || !selectedSubjectId) return;
 
     setIsSaving(true);
     setSaveStatus('idle');
@@ -93,17 +110,43 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
       const res = await fetch('/api/settings/sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: sheetUrl })
+        body: JSON.stringify({ url: sheetUrl, subjectId: selectedSubjectId })
       });
       if (res.ok) {
         setSaveStatus('success');
-        await fetchEmails(); // Refresh list after save
+        await loadSubjects(); // Refresh subjects list
+        await fetchEmails(selectedSubjectId); // Refresh list after save
       } else {
         setSaveStatus('error');
       }
     } catch (error) {
       console.error("Error saving sheet ID:", error);
       setSaveStatus('error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubjectId || !newSubjectName) return;
+    
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/subjects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: newSubjectId, name: newSubjectName })
+      });
+      if (res.ok) {
+        await loadSubjects();
+        handleSelectSubject(newSubjectId);
+        setIsAddingSubject(false);
+        setNewSubjectId('');
+        setNewSubjectName('');
+      }
+    } catch (error) {
+      console.error("Error adding subject:", error);
     } finally {
       setIsSaving(false);
     }
@@ -117,7 +160,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
@@ -152,7 +195,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
-            Danh sách Whitelist
+            Quản lý Môn học & Whitelist
           </button>
           <button
             onClick={() => setActiveTab('active')}
@@ -174,102 +217,175 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         {/* Content */}
         <div className="p-6 flex-1 overflow-y-auto">
           {activeTab === 'whitelist' ? (
-            <>
-              <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-amber-800 dark:text-amber-200">
-                  <p className="font-bold mb-1">Hướng dẫn thiết lập:</p>
-                  <ol className="list-decimal pl-4 space-y-1">
-                    <li>Tạo một file Google Sheet và nhập danh sách email vào bất kỳ cột nào.</li>
-                    <li>Bấm nút <strong>Chia sẻ (Share)</strong> ở góc trên bên phải của Sheet.</li>
-                    <li>Đổi quyền truy cập chung thành <strong>Bất kỳ ai có liên kết (Anyone with the link)</strong> và chọn vai trò là <strong>Người xem (Viewer)</strong>.</li>
-                    <li>Copy link của Sheet đó và dán vào ô bên dưới.</li>
-                  </ol>
+            <div className="flex flex-col md:flex-row gap-6">
+              {/* Sidebar: Subjects List */}
+              <div className="w-full md:w-1/3 border-r border-slate-200 dark:border-slate-700 pr-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <BookOpen className="w-4 h-4" /> Môn học
+                  </h3>
+                  <button
+                    onClick={() => setIsAddingSubject(!isAddingSubject)}
+                    className="p-1 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {isAddingSubject && (
+                  <form onSubmit={handleAddSubject} className="mb-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Mã môn (vd: math)"
+                        value={newSubjectId}
+                        onChange={(e) => setNewSubjectId(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                        required
+                      />
+                      <input
+                        type="text"
+                        placeholder="Tên môn học"
+                        value={newSubjectName}
+                        onChange={(e) => setNewSubjectName(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                        required
+                      />
+                      <div className="flex gap-2">
+                        <button type="submit" disabled={isSaving} className="flex-1 bg-indigo-600 text-white text-xs py-1.5 rounded-md hover:bg-indigo-700">
+                          {isSaving ? 'Đang lưu...' : 'Thêm'}
+                        </button>
+                        <button type="button" onClick={() => setIsAddingSubject(false)} className="flex-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs py-1.5 rounded-md hover:bg-slate-300 dark:hover:bg-slate-600">
+                          Hủy
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                )}
+
+                <div className="space-y-1">
+                  {subjects.map(subject => (
+                    <button
+                      key={subject.id}
+                      onClick={() => handleSelectSubject(subject.id)}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                        selectedSubjectId === subject.id
+                          ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-medium'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      {subject.name}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <form onSubmit={handleSave} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Link Google Sheet
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <LinkIcon className="h-5 w-5 text-slate-400" />
-                    </div>
-                    <input
-                      type="url"
-                      required
-                      value={sheetUrl}
-                      onChange={(e) => setSheetUrl(e.target.value)}
-                      placeholder="https://docs.google.com/spreadsheets/d/..."
-                      className="block w-full pl-10 pr-3 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 pt-2">
-                  <button
-                    type="submit"
-                    disabled={isSaving || !sheetUrl}
-                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
-                  >
-                    {isSaving ? 'Đang lưu...' : 'Lưu & Đồng Bộ'}
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={fetchEmails}
-                    disabled={isTesting || !sheetUrl}
-                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-medium transition-colors disabled:opacity-50"
-                  >
-                    {isTesting ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Làm mới danh sách'}
-                  </button>
-                </div>
-              </form>
-
-              {saveStatus === 'success' && (
-                <div className="mt-4 flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-medium">
-                  <CheckCircle2 className="w-5 h-5" />
-                  Đã lưu cấu hình thành công!
-                </div>
-              )}
-
-              {testResult && (
-                <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                      Danh sách email hợp lệ ({testResult.count})
-                    </h3>
-                    <div className="relative w-48">
-                      <input
-                        type="text"
-                        placeholder="Tìm email..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 max-h-64 overflow-y-auto">
-                    {filteredEmails.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {filteredEmails.map((email, idx) => (
-                          <span key={idx} className="text-xs font-mono text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-100 dark:border-slate-700">
-                            {email}
-                          </span>
-                        ))}
+              {/* Main Content: Subject Config */}
+              <div className="w-full md:w-2/3">
+                {selectedSubjectId ? (
+                  <>
+                    <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm text-amber-800 dark:text-amber-200">
+                        <p className="font-bold mb-1">Cấu hình cho môn: {subjects.find(s => s.id === selectedSubjectId)?.name}</p>
+                        <ol className="list-decimal pl-4 space-y-1">
+                          <li>Tạo một file Google Sheet và nhập danh sách email.</li>
+                          <li>Bấm nút <strong>Chia sẻ (Share)</strong>.</li>
+                          <li>Đổi quyền truy cập chung thành <strong>Bất kỳ ai có liên kết</strong> (Người xem).</li>
+                          <li>Copy link của Sheet đó và dán vào ô bên dưới.</li>
+                        </ol>
                       </div>
-                    ) : (
-                      <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
-                        {searchTerm ? 'Không tìm thấy email nào khớp.' : 'Danh sách trống.'}
-                      </p>
+                    </div>
+
+                    <form onSubmit={handleSaveSheet} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Link Google Sheet
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <LinkIcon className="h-5 w-5 text-slate-400" />
+                          </div>
+                          <input
+                            type="url"
+                            required
+                            value={sheetUrl}
+                            onChange={(e) => setSheetUrl(e.target.value)}
+                            placeholder="https://docs.google.com/spreadsheets/d/..."
+                            className="block w-full pl-10 pr-3 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSaving || !sheetUrl}
+                          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
+                        >
+                          {isSaving ? 'Đang lưu...' : 'Lưu & Đồng Bộ'}
+                        </button>
+                        
+                        <button
+                          type="button"
+                          onClick={() => fetchEmails(selectedSubjectId)}
+                          disabled={isTesting || !sheetUrl}
+                          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-medium transition-colors disabled:opacity-50"
+                        >
+                          {isTesting ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Làm mới danh sách'}
+                        </button>
+                      </div>
+                    </form>
+
+                    {saveStatus === 'success' && (
+                      <div className="mt-4 flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-medium">
+                        <CheckCircle2 className="w-5 h-5" />
+                        Đã lưu cấu hình thành công!
+                      </div>
                     )}
+
+                    {testResult && (
+                      <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                            Danh sách email hợp lệ ({testResult.count})
+                          </h3>
+                          <div className="relative w-48">
+                            <input
+                              type="text"
+                              placeholder="Tìm email..."
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
+                              className="w-full px-3 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-indigo-500 outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 max-h-64 overflow-y-auto">
+                          {filteredEmails.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {filteredEmails.map((email, idx) => (
+                                <span key={idx} className="text-xs font-mono text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-100 dark:border-slate-700">
+                                  {email}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
+                              {searchTerm ? 'Không tìm thấy email nào khớp.' : 'Danh sách trống.'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-slate-500">
+                    Vui lòng chọn hoặc thêm một môn học
                   </div>
-                </div>
-              )}
-            </>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-2">

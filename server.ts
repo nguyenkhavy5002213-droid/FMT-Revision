@@ -9,9 +9,37 @@ const DATA_FILE = path.join(process.cwd(), 'data.json');
 async function readData() {
   try {
     const data = await fs.readFile(DATA_FILE, 'utf-8');
-    return JSON.parse(data);
+    let parsed = JSON.parse(data);
+    
+    // Migrate old data structure to new one
+    if (parsed.sheetUrl !== undefined && !parsed.subjects) {
+      parsed.subjects = {
+        "obe": {
+          name: "Organizational Behavior (OBE)",
+          sheetUrl: parsed.sheetUrl
+        },
+        "ibm": {
+          name: "IBM Revision",
+          sheetUrl: ""
+        }
+      };
+      delete parsed.sheetUrl;
+      await writeData(parsed);
+    } else if (!parsed.subjects) {
+      parsed.subjects = {
+        "obe": { name: "Organizational Behavior (OBE)", sheetUrl: "" },
+        "ibm": { name: "IBM Revision", sheetUrl: "" }
+      };
+    }
+    return parsed;
   } catch (e) {
-    return { sheetUrl: '', sessions: {} };
+    return { 
+      subjects: {
+        "obe": { name: "Organizational Behavior (OBE)", sheetUrl: "" },
+        "ibm": { name: "IBM Revision", sheetUrl: "" }
+      }, 
+      sessions: {} 
+    };
   }
 }
 
@@ -20,15 +48,16 @@ async function writeData(data: any) {
 }
 
 // --- Caching Mechanism for Google Sheet ---
-let cachedEmails: string[] = [];
-let lastFetchTime = 0;
+let cachedEmails: Record<string, string[]> = {};
+let lastFetchTime: Record<string, number> = {};
 const CACHE_DURATION = 30 * 1000; // Cache for 30 seconds to avoid rate limits but stay responsive
 
-async function getAllowedEmails(sheetUrl: string): Promise<string[]> {
+async function getAllowedEmails(subjectId: string, sheetUrl: string): Promise<string[]> {
   if (!sheetUrl) return [];
   
-  if (Date.now() - lastFetchTime < CACHE_DURATION) {
-    return cachedEmails;
+  const now = Date.now();
+  if (lastFetchTime[subjectId] && now - lastFetchTime[subjectId] < CACHE_DURATION) {
+    return cachedEmails[subjectId] || [];
   }
 
   try {
@@ -38,24 +67,24 @@ async function getAllowedEmails(sheetUrl: string): Promise<string[]> {
     
     if (eMatch) {
       // Published to web format
-      fetchUrl = `https://docs.google.com/spreadsheets/d/e/${eMatch[1]}/pub?output=csv&t=${Date.now()}`;
+      fetchUrl = `https://docs.google.com/spreadsheets/d/e/${eMatch[1]}/pub?output=csv&t=${now}`;
     } else if (dMatch) {
       // Standard shared link format
-      fetchUrl = `https://docs.google.com/spreadsheets/d/${dMatch[1]}/gviz/tq?tqx=out:csv&t=${Date.now()}`;
+      fetchUrl = `https://docs.google.com/spreadsheets/d/${dMatch[1]}/gviz/tq?tqx=out:csv&t=${now}`;
     }
 
     if (fetchUrl) {
-      console.log('Fetching emails from:', fetchUrl);
+      console.log(`Fetching emails for ${subjectId} from:`, fetchUrl);
       const response = await fetch(fetchUrl);
       if (response.ok) {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('text/html')) {
-          console.error('Google Sheet is not public or URL is incorrect (returned HTML)');
+          console.error(`Google Sheet for ${subjectId} is not public or URL is incorrect (returned HTML)`);
           // If we have no cache, we might want to know it failed
-          if (cachedEmails.length === 0) {
+          if (!cachedEmails[subjectId] || cachedEmails[subjectId].length === 0) {
              console.log('No cached emails available.');
           }
-          return cachedEmails;
+          return cachedEmails[subjectId] || [];
         }
         
         const csvText = await response.text();
@@ -63,20 +92,20 @@ async function getAllowedEmails(sheetUrl: string): Promise<string[]> {
         const matches = csvText.toLowerCase().match(emailRegex) || [];
         const uniqueEmails = [...new Set(matches.map(e => e.trim()))];
         
-        console.log(`Successfully fetched ${uniqueEmails.length} unique emails.`);
-        cachedEmails = uniqueEmails;
-        lastFetchTime = Date.now();
-        return cachedEmails;
+        console.log(`Successfully fetched ${uniqueEmails.length} unique emails for ${subjectId}.`);
+        cachedEmails[subjectId] = uniqueEmails;
+        lastFetchTime[subjectId] = now;
+        return uniqueEmails;
       } else {
-        console.error('Fetch failed with status:', response.status);
+        console.error(`Fetch failed for ${subjectId} with status:`, response.status);
       }
     } else {
-      console.error('Could not extract Sheet ID from URL:', sheetUrl);
+      console.error(`Could not extract Sheet ID from URL for ${subjectId}:`, sheetUrl);
     }
   } catch (error) {
-    console.error('Error fetching sheet:', error);
+    console.error(`Error fetching sheet for ${subjectId}:`, error);
   }
-  return cachedEmails;
+  return cachedEmails[subjectId] || [];
 }
 
 async function startServer() {
@@ -87,11 +116,47 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
-  app.get('/api/settings/emails', async (req, res, next) => {
+  app.get('/api/subjects', async (req, res, next) => {
     try {
       const data = await readData();
-      if (!data.sheetUrl) return res.json({ emails: [] });
-      const emails = await getAllowedEmails(data.sheetUrl);
+      const subjects = Object.keys(data.subjects).map(id => ({
+        id,
+        name: data.subjects[id].name,
+        sheetUrl: data.subjects[id].sheetUrl
+      }));
+      res.json({ subjects });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  app.post('/api/subjects', async (req, res, next) => {
+    try {
+      const { id, name, sheetUrl } = req.body;
+      if (!id || !name) {
+        return res.status(400).json({ error: 'ID and name are required' });
+      }
+      
+      const data = await readData();
+      data.subjects[id] = {
+        name,
+        sheetUrl: sheetUrl || (data.subjects[id] ? data.subjects[id].sheetUrl : '')
+      };
+      await writeData(data);
+      
+      res.json({ success: true, subject: { id, ...data.subjects[id] } });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  app.get('/api/settings/emails', async (req, res, next) => {
+    try {
+      const subjectId = req.query.subjectId as string || 'obe';
+      const data = await readData();
+      const subject = data.subjects[subjectId];
+      if (!subject || !subject.sheetUrl) return res.json({ emails: [] });
+      const emails = await getAllowedEmails(subjectId, subject.sheetUrl);
       res.json({ emails });
     } catch (e) {
       next(e);
@@ -100,8 +165,10 @@ async function startServer() {
 
   app.get('/api/settings/sheet', async (req, res, next) => {
     try {
+      const subjectId = req.query.subjectId as string || 'obe';
       const data = await readData();
-      res.json({ url: data.sheetUrl || '' });
+      const subject = data.subjects[subjectId];
+      res.json({ url: subject ? subject.sheetUrl : '' });
     } catch (e) {
       next(e);
     }
@@ -109,13 +176,16 @@ async function startServer() {
 
   app.post('/api/settings/sheet', async (req, res, next) => {
     try {
-      const { url } = req.body;
+      const { url, subjectId = 'obe' } = req.body;
       const data = await readData();
-      data.sheetUrl = url;
+      if (!data.subjects[subjectId]) {
+        return res.status(404).json({ error: 'Subject not found' });
+      }
+      data.subjects[subjectId].sheetUrl = url;
       await writeData(data);
       
       // Invalidate cache when sheet URL changes
-      lastFetchTime = 0;
+      lastFetchTime[subjectId] = 0;
       
       res.json({ success: true });
     } catch (e) {
@@ -127,45 +197,53 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'nguyenkhavy5002213@gmail.com';
 
   app.post('/api/auth/login', async (req, res, next) => {
     try {
-      const { email } = req.body;
+      const { email, subjectId } = req.body;
       if (!email) return res.status(400).json({ error: 'Email is required' });
+      if (!subjectId) return res.status(400).json({ error: 'Subject ID is required' });
       
       const normalizedEmail = email.toLowerCase().trim();
-      const isAdmin = normalizedEmail === ADMIN_EMAIL.toLowerCase().trim();
+      const isAdmin = normalizedEmail === ADMIN_EMAIL.toLowerCase().trim() || normalizedEmail === 'nguyenkhavy5002213@gmail.com';
       let isAllowed = isAdmin;
 
       const data = await readData();
+      const subject = data.subjects[subjectId];
+
+      if (!subject) {
+        return res.status(404).json({ error: 'Subject not found' });
+      }
 
       if (!isAdmin) {
-        if (!data.sheetUrl) {
-          console.log(`Login denied for ${normalizedEmail}: Sheet URL not configured.`);
-          return res.json({ success: false, error: 'Hệ thống chưa được cấu hình danh sách email. Vui lòng liên hệ Quản trị viên để thiết lập Google Sheet.' });
+        if (!subject.sheetUrl) {
+          console.log(`Login denied for ${normalizedEmail} on ${subjectId}: Sheet URL not configured.`);
+          return res.json({ success: false, error: 'Hệ thống chưa được cấu hình danh sách email cho môn học này. Vui lòng liên hệ Quản trị viên.' });
         }
         
-        const allowedEmails = await getAllowedEmails(data.sheetUrl);
+        const allowedEmails = await getAllowedEmails(subjectId, subject.sheetUrl);
         isAllowed = allowedEmails.includes(normalizedEmail);
         
         if (!isAllowed) {
-          console.log(`Login denied for ${normalizedEmail}: Not in sheet. Sheet has ${allowedEmails.length} emails.`);
-          // Log first few emails for debugging (don't log all for privacy)
-          console.log('Sample allowed emails:', allowedEmails.slice(0, 3));
+          console.log(`Login denied for ${normalizedEmail} on ${subjectId}: Not in sheet. Sheet has ${allowedEmails.length} emails.`);
         }
       }
 
       if (!isAllowed) {
-        return res.json({ success: false, error: 'Email của bạn chưa có trong danh sách được phép. Vui lòng liên hệ Quản trị viên.' });
+        return res.json({ success: false, error: 'Email của bạn chưa có trong danh sách được phép truy cập môn học này. Vui lòng liên hệ Quản trị viên.' });
       }
 
       // Generate session token to enforce 1-device policy
       const token = Date.now().toString(36) + Math.random().toString(36).substring(2);
       if (!data.sessions) data.sessions = {};
-      data.sessions[normalizedEmail] = {
+      
+      // Store session per subject
+      const sessionKey = `${normalizedEmail}_${subjectId}`;
+      data.sessions[sessionKey] = {
         token,
-        lastActive: Date.now()
+        lastActive: Date.now(),
+        subjectId
       };
       await writeData(data);
 
-      res.json({ success: true, email: normalizedEmail, token, isAdmin });
+      res.json({ success: true, email: normalizedEmail, token, isAdmin, subjectId, subjectName: subject.name });
     } catch (e) {
       next(e);
     }
@@ -173,34 +251,37 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'nguyenkhavy5002213@gmail.com';
 
   app.post('/api/auth/verify', async (req, res, next) => {
     try {
-      const { email, token } = req.body;
-      if (!email || !token) return res.json({ valid: false });
+      const { email, token, subjectId } = req.body;
+      if (!email || !token || !subjectId) return res.json({ valid: false });
       
       const normalizedEmail = email.toLowerCase().trim();
       const data = await readData();
+      const sessionKey = `${normalizedEmail}_${subjectId}`;
       
       // 1. Check 1-device policy (session token match)
-      if (!data.sessions || !data.sessions[normalizedEmail] || data.sessions[normalizedEmail].token !== token) {
+      if (!data.sessions || !data.sessions[sessionKey] || data.sessions[sessionKey].token !== token) {
         return res.json({ valid: false, reason: 'device_conflict' });
       }
       
       // Update last active time
-      data.sessions[normalizedEmail].lastActive = Date.now();
+      data.sessions[sessionKey].lastActive = Date.now();
       await writeData(data);
       
       // 2. Continuous check: ensure email is STILL in the Google Sheet
-      const isAdmin = normalizedEmail === ADMIN_EMAIL.toLowerCase().trim();
-      if (!isAdmin && data.sheetUrl) {
-        const allowedEmails = await getAllowedEmails(data.sheetUrl);
+      const isAdmin = normalizedEmail === ADMIN_EMAIL.toLowerCase().trim() || normalizedEmail === 'nguyenkhavy5002213@gmail.com';
+      const subject = data.subjects[subjectId];
+      
+      if (!isAdmin && subject && subject.sheetUrl) {
+        const allowedEmails = await getAllowedEmails(subjectId, subject.sheetUrl);
         if (!allowedEmails.includes(normalizedEmail)) {
           // Email was removed from the sheet! Revoke session.
-          delete data.sessions[normalizedEmail];
+          delete data.sessions[sessionKey];
           await writeData(data);
           return res.json({ valid: false, reason: 'removed_from_sheet' });
         }
       }
 
-      res.json({ valid: true });
+      res.json({ valid: true, subjectName: subject ? subject.name : undefined });
     } catch (e) {
       next(e);
     }
@@ -208,10 +289,11 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'nguyenkhavy5002213@gmail.com';
 
   app.post('/api/auth/logout', async (req, res, next) => {
      try {
-       const { email } = req.body;
+       const { email, subjectId } = req.body;
        const data = await readData();
-       if (email && data.sessions && data.sessions[email]) {
-         delete data.sessions[email];
+       const sessionKey = `${email}_${subjectId}`;
+       if (email && subjectId && data.sessions && data.sessions[sessionKey]) {
+         delete data.sessions[sessionKey];
          await writeData(data);
        }
        res.json({ success: true });
@@ -224,7 +306,7 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'nguyenkhavy5002213@gmail.com';
     try {
       // Basic check for admin email in headers (for simplicity, real apps should use proper auth middleware)
       const adminEmail = req.headers['x-admin-email'];
-      if (adminEmail !== ADMIN_EMAIL) {
+      if (adminEmail !== ADMIN_EMAIL && adminEmail !== 'nguyenkhavy5002213@gmail.com') {
         return res.status(403).json({ error: 'Unauthorized' });
       }
 

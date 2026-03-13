@@ -1,4 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
+  
+  /* Vibrant & Colorful Palette */
+  --color-vibrant-blue: #3B82F6;
+  --color-vibrant-pink: #EC4899;
+  --color-vibrant-yellow: #F59E0B;
+  --color-vibrant-green: #10B981;
+  --color-vibrant-purple: #8B5CF6;
+  --color-vibrant-orange: #F97316;
+  --color-vibrant-indigo: #6366F1;
+  --color-vibrant-cyan: #06B6D4;
+  --color-vibrant-rose: #F43F5E;
+  --color-vibrant-lime: #84CC16;
+}
 
 @variant dark (&:where(.dark, .dark *));
 

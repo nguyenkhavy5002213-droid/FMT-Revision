@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Lightbulb, BookMarked, Target, BrainCircuit } from 'lucide-react';
-import { knowledgeBase, Section, SubSection } from '../data/knowledgeBase';
+import { Section, SubSection } from '../data';
 import ReactMarkdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -11,18 +11,19 @@ function cn(...inputs: ClassValue[]) {
 
 interface ReviewSectionProps {
   highlightedId: string | null;
-  selectedChapter: number;
+  selectedChapter: number | string;
   onStartSpecificQuiz: (sectionId: string, topic: string) => void;
+  knowledgeBase: Section[];
 }
 
-export function ReviewSection({ highlightedId, selectedChapter, onStartSpecificQuiz }: ReviewSectionProps) {
-  const filteredKnowledge = knowledgeBase.filter(section => section.chapter === selectedChapter);
+export function ReviewSection({ highlightedId, selectedChapter, onStartSpecificQuiz, knowledgeBase }: ReviewSectionProps) {
+  const filteredKnowledge = knowledgeBase.filter(section => String(section.chapter) === String(selectedChapter));
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-full transition-colors duration-300">
-      <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-          <BookMarked className="w-6 h-6 text-indigo-500" />
+      <div className="p-6 bg-pastel-offwhite-1 dark:bg-slate-900/50 border-b border-pastel-mint-1 dark:border-slate-700">
+        <h2 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+          <BookMarked className="w-6 h-6 text-pastel-teal-2" />
           Hệ thống Ôn tập Kiến thức - Chương {selectedChapter}
         </h2>
         <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm">
@@ -54,13 +55,17 @@ function SectionItem({ section, highlightedId, onStartSpecificQuiz }: { section:
   const [isOpen, setIsOpen] = useState(true);
   const sectionRef = useRef<HTMLDivElement>(null);
   const isHighlighted = highlightedId === section.id;
+  const isAnySubHighlighted = section.subsections.some(sub => sub.id === highlightedId);
 
   useEffect(() => {
-    if (isHighlighted && sectionRef.current) {
+    if ((isHighlighted || isAnySubHighlighted) && sectionRef.current) {
       setIsOpen(true);
-      sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Wait for the expansion animation
+      setTimeout(() => {
+        sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
     }
-  }, [isHighlighted]);
+  }, [isHighlighted, isAnySubHighlighted]);
 
   return (
     <div 
@@ -68,8 +73,8 @@ function SectionItem({ section, highlightedId, onStartSpecificQuiz }: { section:
       id={section.id}
       className={cn(
         "border-l-4 rounded-r-xl overflow-hidden transition-all duration-500 shadow-sm",
-        isHighlighted 
-          ? "border-l-indigo-500 ring-2 ring-indigo-500/50 bg-indigo-50/30 dark:bg-indigo-900/20" 
+        (isHighlighted || isAnySubHighlighted)
+          ? "border-l-pastel-teal-2 ring-2 ring-pastel-teal-2/50 bg-pastel-cyan-1/30 dark:bg-sky-900/20" 
           : "border-l-slate-300 dark:border-l-slate-600 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
       )}
     >
@@ -88,7 +93,7 @@ function SectionItem({ section, highlightedId, onStartSpecificQuiz }: { section:
             e.stopPropagation();
             onStartSpecificQuiz(section.id, section.title);
           }}
-          className="mr-4 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+          className="mr-4 px-3 py-1.5 bg-pastel-teal-2 hover:bg-pastel-teal-1 text-slate-800 text-xs font-extrabold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm border border-pastel-teal-2/50"
           title="Làm bài tập riêng cho phần này"
         >
           <BrainCircuit className="w-3.5 h-3.5" />
@@ -124,7 +129,10 @@ function SubSectionItem({ sub, highlightedId }: { sub: SubSection; highlightedId
     if (isHighlighted && subRef.current) {
       setIsOpen(true);
       if (sub.example) setShowExample(true);
-      subRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Wait for the expansion animation
+      setTimeout(() => {
+        subRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
     }
   }, [isHighlighted, sub.example]);
 
@@ -147,8 +155,8 @@ function SubSectionItem({ sub, highlightedId }: { sub: SubSection; highlightedId
         className="w-full flex items-start justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors text-left gap-4"
       >
         <div className="flex items-start gap-3">
-          <Target className="w-5 h-5 text-indigo-500 mt-0.5 flex-shrink-0" />
-          <h4 className="font-semibold text-slate-800 dark:text-slate-200 leading-snug">{sub.title}</h4>
+          <Target className="w-5 h-5 text-pastel-seafoam-1 mt-0.5 flex-shrink-0" />
+          <h4 className="font-extrabold text-slate-800 dark:text-slate-200 leading-snug">{sub.title}</h4>
         </div>
         {isOpen ? <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0" /> : <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />}
       </button>
@@ -171,7 +179,7 @@ function SubSectionItem({ sub, highlightedId }: { sub: SubSection; highlightedId
                 </button>
                 
                 {showExample && (
-                  <div className="mt-3 p-4 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-100 rounded-xl text-sm border border-amber-200/60 dark:border-amber-700/50 leading-relaxed shadow-sm">
+                  <div className="mt-3 p-4 bg-pastel-yellow-1/30 dark:bg-amber-900/20 text-slate-800 dark:text-amber-100 rounded-xl text-sm border border-pastel-yellow-1/60 dark:border-amber-700/50 leading-relaxed shadow-sm">
                     <div className="markdown-body">
                       <ReactMarkdown>{sub.example}</ReactMarkdown>
                     </div>

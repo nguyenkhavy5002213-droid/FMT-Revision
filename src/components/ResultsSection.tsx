@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { generateAdaptiveQuiz } from '../services/geminiService';
-import { QuizQuestion } from '../data/initialQuiz';
+import { QuizQuestion } from '../data';
 import { Trophy, AlertTriangle, RefreshCw, Loader2, BookOpen } from 'lucide-react';
 
 interface ResultsSectionProps {
@@ -36,13 +36,13 @@ export function ResultsSection({ score, total, weakTopics, knowledgeBaseContext,
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-full animate-in fade-in zoom-in-95 duration-500 transition-colors">
       <div className="p-8 flex-1 flex flex-col items-center justify-center text-center">
-        <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mb-6 shadow-inner">
-          <Trophy className="w-12 h-12" />
+        <div className="w-28 h-28 bg-gradient-to-br from-vibrant-yellow to-vibrant-orange text-white rounded-3xl flex items-center justify-center mb-6 shadow-xl shadow-vibrant-yellow/30 rotate-3">
+          <Trophy className="w-14 h-14" />
         </div>
         
-        <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">Hoàn thành bài tập!</h2>
-        <p className="text-lg text-slate-600 dark:text-slate-300 mb-8">
-          Bạn đã trả lời đúng <strong className="text-indigo-600 dark:text-indigo-400 text-2xl">{score}</strong> trên tổng số <strong className="text-slate-900 dark:text-slate-100 text-xl">{total}</strong> câu hỏi ({percentage}%).
+        <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 mb-2 uppercase tracking-tight">Tuyệt vời!</h2>
+        <p className="text-xl text-slate-600 dark:text-slate-300 mb-8 font-bold">
+          Bạn đã trả lời đúng <strong className="text-vibrant-green text-3xl">{score}</strong> trên tổng số <strong className="text-slate-900 dark:text-slate-100 text-2xl">{total}</strong> câu hỏi ({percentage}%).
         </p>
 
         {weakTopics.length > 0 ? (
@@ -79,7 +79,7 @@ export function ResultsSection({ score, total, weakTopics, knowledgeBaseContext,
           <button
             onClick={handleGenerateAdaptive}
             disabled={isGenerating}
-            className="flex-1 py-3 px-6 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 dark:disabled:bg-indigo-800 text-white rounded-xl font-medium transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+            className="flex-1 py-4 px-8 bg-gradient-to-r from-vibrant-indigo to-vibrant-purple hover:shadow-2xl hover:shadow-vibrant-indigo/40 disabled:bg-slate-300 text-white rounded-2xl font-black text-lg uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3"
           >
             {isGenerating ? (
               <><Loader2 className="w-5 h-5 animate-spin" /> Đang tạo...</>

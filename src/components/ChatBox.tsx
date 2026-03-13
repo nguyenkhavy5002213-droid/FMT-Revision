@@ -46,9 +46,10 @@ export function ChatBox({ knowledgeBaseContext }: ChatBoxProps) {
     try {
       const response = await chatWithAI(userMsg, messages, knowledgeBaseContext);
       setMessages(prev => [...prev, { role: 'model', content: response }]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chat error:", error);
-      setMessages(prev => [...prev, { role: 'model', content: 'Xin lỗi, đã có lỗi xảy ra khi kết nối với AI. Vui lòng thử lại sau.' }]);
+      const errorMessage = error.message || 'Xin lỗi, đã có lỗi xảy ra khi kết nối với AI. Vui lòng thử lại sau.';
+      setMessages(prev => [...prev, { role: 'model', content: errorMessage }]);
     } finally {
       setIsLoading(false);
     }
@@ -60,11 +61,11 @@ export function ChatBox({ knowledgeBaseContext }: ChatBoxProps) {
       <button
         onClick={() => setIsOpen(true)}
         className={cn(
-          "fixed bottom-6 right-6 p-4 rounded-full shadow-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all duration-300 z-40",
+          "fixed bottom-6 right-6 p-5 rounded-2xl shadow-2xl bg-gradient-to-br from-vibrant-pink to-vibrant-rose text-white transition-all duration-300 z-40 hover:scale-110 active:scale-95 hover:rotate-6",
           isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100"
         )}
       >
-        <MessageSquare className="w-6 h-6" />
+        <MessageSquare className="w-7 h-7" />
       </button>
 
       {/* Chat Window */}
@@ -75,10 +76,12 @@ export function ChatBox({ knowledgeBaseContext }: ChatBoxProps) {
         )}
       >
         {/* Header */}
-        <div className="p-4 bg-indigo-600 dark:bg-indigo-700 text-white flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Bot className="w-5 h-5" />
-            <h3 className="font-semibold">Trợ lý AI Gemini</h3>
+        <div className="p-4 bg-gradient-to-r from-vibrant-pink to-vibrant-rose text-white flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <Bot className="w-5 h-5 text-white" />
+            </div>
+            <h3 className="font-black uppercase tracking-widest text-sm">AI Assistant</h3>
           </div>
           <button
             onClick={() => setIsOpen(false)}
@@ -99,17 +102,17 @@ export function ChatBox({ knowledgeBaseContext }: ChatBoxProps) {
               )}
             >
               <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-                msg.role === 'user' ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300" : "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-300"
+                "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm",
+                msg.role === 'user' ? "bg-vibrant-pink text-white" : "bg-vibrant-blue text-white"
               )}>
                 {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
               </div>
               <div
                 className={cn(
-                  "p-3 rounded-2xl text-sm",
+                  "p-4 rounded-2xl text-sm shadow-sm",
                   msg.role === 'user' 
-                    ? "bg-indigo-600 dark:bg-indigo-500 text-white rounded-tr-sm" 
-                    : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-tl-sm shadow-sm"
+                    ? "bg-gradient-to-br from-vibrant-pink to-vibrant-rose text-white rounded-tr-sm font-bold" 
+                    : "bg-white dark:bg-slate-800 border-2 border-vibrant-blue/10 text-slate-700 dark:text-slate-200 rounded-tl-sm"
                 )}
               >
                 {msg.role === 'user' ? (
@@ -137,21 +140,21 @@ export function ChatBox({ knowledgeBaseContext }: ChatBoxProps) {
         </div>
 
         {/* Input */}
-        <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
-          <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-2 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all">
+        <div className="p-4 bg-white dark:bg-slate-800 border-t-2 border-slate-100 dark:border-slate-700">
+          <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 border-2 border-vibrant-pink/20 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-vibrant-pink focus-within:border-vibrant-pink transition-all">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Hỏi AI về kiến thức..."
-              className="flex-1 bg-transparent border-none focus:outline-none text-sm px-2 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
+              className="flex-1 bg-transparent border-none focus:outline-none text-sm px-3 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 font-bold"
               disabled={isLoading}
             />
             <button
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
-              className="p-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white dark:disabled:text-slate-500 rounded-lg transition-colors"
+              className="p-3 bg-gradient-to-br from-vibrant-pink to-vibrant-rose hover:shadow-lg text-white rounded-xl transition-all active:scale-90"
             >
               <Send className="w-4 h-4" />
             </button>

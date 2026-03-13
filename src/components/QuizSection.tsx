@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { QuizQuestion } from '../data/initialQuiz';
-import { CheckCircle2, XCircle, MapPin, ArrowRight, RefreshCw } from 'lucide-react';
+import { QuizQuestion } from '../data';
+import { CheckCircle2, XCircle, MapPin, ArrowRight, RefreshCw, Loader2 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -12,14 +12,41 @@ interface QuizSectionProps {
   questions: QuizQuestion[];
   onLocateKnowledge: (sectionId: string) => void;
   onComplete: (score: number, weakTopics: string[]) => void;
+  isLoading?: boolean;
+  activeFilter?: string | null;
+  onClearFilter?: () => void;
 }
 
-export function QuizSection({ questions, onLocateKnowledge, onComplete }: QuizSectionProps) {
+export function QuizSection({ questions, onLocateKnowledge, onComplete, isLoading, activeFilter, onClearFilter }: QuizSectionProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [score, setScore] = useState(0);
   const [weakTopics, setWeakTopics] = useState<Set<string>>(new Set());
+
+  if (isLoading) {
+    return (
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8 flex flex-col items-center justify-center h-full text-center min-h-[400px]">
+        <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
+        <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-2">Đang tạo câu hỏi...</h3>
+        <p className="text-slate-500 dark:text-slate-400">
+          Hệ thống đang sử dụng AI để tạo các câu hỏi trắc nghiệm phù hợp với nội dung bạn đã chọn.
+        </p>
+      </div>
+    );
+  }
+
+  if (!questions || questions.length === 0) {
+    return (
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8 flex flex-col items-center justify-center h-full text-center">
+        <RefreshCw className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-4" />
+        <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-2">Chưa có câu hỏi</h3>
+        <p className="text-slate-500 dark:text-slate-400">
+          Chưa có câu hỏi trắc nghiệm nào được tạo cho phần này. Bạn có thể sử dụng tính năng "Tạo Quiz" từ phần Ôn tập để tạo câu hỏi bằng AI.
+        </p>
+      </div>
+    );
+  }
 
   const currentQuestion = questions[currentIndex];
 
@@ -54,7 +81,24 @@ export function QuizSection({ questions, onLocateKnowledge, onComplete }: QuizSe
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-full transition-colors duration-300">
       <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Trắc nghiệm (Multiple Choice)</h2>
+        <div className="flex flex-col gap-1">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Trắc nghiệm (Multiple Choice)</h2>
+          {activeFilter && (
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs font-semibold px-2 py-0.5 bg-pastel-teal-1/50 text-slate-700 dark:bg-sky-900/50 dark:text-sky-300 rounded-md border border-pastel-teal-2/30 dark:border-sky-700/50">
+                Đang lọc: {activeFilter}
+              </span>
+              {onClearFilter && (
+                <button 
+                  onClick={onClearFilter}
+                  className="text-xs text-slate-500 hover:text-rose-500 dark:text-slate-400 dark:hover:text-rose-400 underline decoration-dotted underline-offset-2 transition-colors"
+                >
+                  Xóa bộ lọc (Xem tất cả)
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <span className="px-3 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full text-sm font-medium text-slate-600 dark:text-slate-300">
           Câu {currentIndex + 1} / {questions.length}
         </span>
@@ -71,17 +115,17 @@ export function QuizSection({ questions, onLocateKnowledge, onComplete }: QuizSe
             const isSelected = selectedAnswer === key;
             const isCorrect = key === currentQuestion.correctAnswer;
             
-            let optionClass = "border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200";
+            let optionClass = "border-slate-200 dark:border-slate-700 hover:border-pastel-teal-2 hover:bg-pastel-cyan-1/20 text-slate-700 dark:text-slate-200";
             if (isAnswered) {
               if (isCorrect) {
-                optionClass = "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-900 dark:text-emerald-100";
+                optionClass = "border-pastel-green-1 bg-pastel-green-1/30 text-slate-800 dark:text-emerald-100";
               } else if (isSelected) {
-                optionClass = "border-red-500 bg-red-50 dark:bg-red-900/30 text-red-900 dark:text-red-100";
+                optionClass = "border-pastel-pink-1 bg-pastel-pink-1/30 text-slate-800 dark:text-rose-100";
               } else {
                 optionClass = "border-slate-200 dark:border-slate-700 opacity-50 text-slate-500 dark:text-slate-400";
               }
             } else if (isSelected) {
-              optionClass = "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-500 text-indigo-900 dark:text-indigo-100";
+              optionClass = "border-pastel-teal-2 bg-pastel-cyan-1/50 ring-1 ring-pastel-teal-2 text-slate-900 dark:text-sky-100";
             }
 
             return (
@@ -102,8 +146,8 @@ export function QuizSection({ questions, onLocateKnowledge, onComplete }: QuizSe
                     <p className="font-medium">{option.en}</p>
                     <p className="text-sm opacity-70 mt-1">{option.vi}</p>
                   </div>
-                  {isAnswered && isCorrect && <CheckCircle2 className="w-6 h-6 text-emerald-500 ml-auto flex-shrink-0" />}
-                  {isAnswered && isSelected && !isCorrect && <XCircle className="w-6 h-6 text-red-500 ml-auto flex-shrink-0" />}
+                  {isAnswered && isCorrect && <CheckCircle2 className="w-6 h-6 text-pastel-green-1 ml-auto flex-shrink-0" />}
+                  {isAnswered && isSelected && !isCorrect && <XCircle className="w-6 h-6 text-pastel-pink-1 ml-auto flex-shrink-0" />}
                 </div>
               </button>
             );
@@ -114,11 +158,11 @@ export function QuizSection({ questions, onLocateKnowledge, onComplete }: QuizSe
           <div className="mt-8 p-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center gap-2 mb-4">
               {selectedAnswer === currentQuestion.correctAnswer ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 text-sm font-semibold">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pastel-green-1/50 text-slate-800 text-sm font-extrabold">
                   <CheckCircle2 className="w-4 h-4" /> Chính xác!
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 text-sm font-semibold">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pastel-pink-1/50 text-slate-800 text-sm font-extrabold">
                   <XCircle className="w-4 h-4" /> Rất tiếc, chưa chính xác.
                 </span>
               )}
@@ -142,7 +186,7 @@ export function QuizSection({ questions, onLocateKnowledge, onComplete }: QuizSe
 
               <button
                 onClick={() => onLocateKnowledge(currentQuestion.relatedSectionId)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-600 transition-colors text-sm font-medium shadow-sm"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border border-pastel-teal-2/50 text-slate-700 dark:text-sky-300 rounded-lg hover:bg-pastel-cyan-1/50 transition-colors text-sm font-extrabold shadow-sm"
               >
                 <MapPin className="w-4 h-4" />
                 Định vị kiến thức
@@ -157,7 +201,7 @@ export function QuizSection({ questions, onLocateKnowledge, onComplete }: QuizSe
           <button
             onClick={handleSubmit}
             disabled={!selectedAnswer}
-            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:text-slate-500 dark:disabled:text-slate-400 text-white rounded-xl font-medium transition-colors shadow-sm"
+            className="w-full py-3 px-4 bg-pastel-teal-2 hover:bg-pastel-teal-1 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:text-slate-500 dark:disabled:text-slate-400 text-slate-800 rounded-xl font-extrabold transition-colors shadow-sm"
           >
             Kiểm tra đáp án
           </button>

@@ -12,8 +12,6 @@
   --color-theme-green: #B0DB9C;
 }
 
-@custom-variant dark (&:is(.dark *));
-
 html, body {
   @apply bg-theme-yellow dark:bg-slate-900 transition-colors duration-300;
 }

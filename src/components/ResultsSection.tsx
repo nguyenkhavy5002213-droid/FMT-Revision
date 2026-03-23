@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
-import { generateAdaptiveQuiz } from '../services/geminiService';
+import React from 'react';
 import { QuizQuestion } from '../data';
-import { Trophy, AlertTriangle, RefreshCw, Loader2, BookOpen } from 'lucide-react';
+import { Trophy, AlertTriangle, RefreshCw, BookOpen } from 'lucide-react';
 
 interface ResultsSectionProps {
   score: number;
@@ -13,25 +12,7 @@ interface ResultsSectionProps {
 }
 
 export function ResultsSection({ score, total, weakTopics, knowledgeBaseContext, onStartAdaptiveQuiz, onReset }: ResultsSectionProps) {
-  const [isGenerating, setIsGenerating] = useState(false);
   const percentage = Math.round((score / total) * 100);
-
-  const handleGenerateAdaptive = async () => {
-    setIsGenerating(true);
-    try {
-      const newQuestions = await generateAdaptiveQuiz(weakTopics.length > 0 ? weakTopics : ['General Review'], knowledgeBaseContext);
-      if (newQuestions && newQuestions.length > 0) {
-        onStartAdaptiveQuiz(newQuestions);
-      } else {
-        alert("Không thể tạo câu hỏi mới lúc này. Vui lòng thử lại.");
-      }
-    } catch (error) {
-      console.error(error);
-      alert("Đã có lỗi xảy ra khi tạo câu hỏi ôn tập.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-full animate-in fade-in zoom-in-95 duration-500 transition-colors">
@@ -71,21 +52,9 @@ export function ResultsSection({ score, total, weakTopics, knowledgeBaseContext,
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
           <button
             onClick={onReset}
-            className="flex-1 py-3 px-6 bg-white dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 hover:border-slate-300 dark:hover:border-slate-500 rounded-xl font-medium transition-all flex items-center justify-center gap-2"
+            className="flex-1 py-3 px-6 bg-white dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 hover:border-slate-300 dark:hover:border-slate-50 rounded-xl font-medium transition-all flex items-center justify-center gap-2"
           >
             <RefreshCw className="w-5 h-5" /> Làm lại từ đầu
-          </button>
-          
-          <button
-            onClick={handleGenerateAdaptive}
-            disabled={isGenerating}
-            className="flex-1 py-4 px-8 bg-gradient-to-r from-theme-blue to-theme-purple hover:shadow-2xl hover:shadow-theme-blue/40 disabled:bg-slate-300 text-slate-800 rounded-2xl font-black text-lg uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3"
-          >
-            {isGenerating ? (
-              <><Loader2 className="w-5 h-5 animate-spin" /> Đang tạo...</>
-            ) : (
-              <><BookOpen className="w-5 h-5" /> Ôn tập lỗ hổng</>
-            )}
           </button>
         </div>
       </div>

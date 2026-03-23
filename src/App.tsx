@@ -2,12 +2,11 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { ReviewSection } from './components/ReviewSection';
 import { QuizSection } from './components/QuizSection';
 import { ResultsSection } from './components/ResultsSection';
-import { ChatBox } from './components/ChatBox';
 import { AuthScreen } from './components/AuthScreen';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AdminPanel } from './components/AdminPanel';
+import { AIChat } from './components/AIChat';
 import { subjects, SubjectData, ChapterData, Section, QuizQuestion } from './data';
-import { generateAdaptiveQuiz } from './services/geminiService';
 import { BookOpen, BrainCircuit, Moon, Sun, LogOut, Loader2, Shield } from 'lucide-react';
 
 function AppContent() {
@@ -105,12 +104,6 @@ function AppContent() {
     }
   }, [isDarkMode]);
 
-  // Stringify knowledge base for AI context
-  const knowledgeBaseContext = useMemo(() => {
-    const filteredKB = filteredKnowledgeBase.filter(s => s.chapter === selectedChapter);
-    return JSON.stringify(filteredKB, null, 2);
-  }, [selectedChapter, filteredKnowledgeBase]);
-
   const handleLocateKnowledge = (sectionId: string) => {
     setHighlightedId(sectionId);
     // Clear highlight after 5 seconds
@@ -128,7 +121,7 @@ function AppContent() {
     setQuizState('playing');
     setScore(0);
     setWeakTopics([]);
-    setActiveQuizFilter('Ôn tập AI (Adaptive)');
+    setActiveQuizFilter('Ôn tập (Adaptive)');
   };
 
   const handleReset = () => {
@@ -138,8 +131,6 @@ function AppContent() {
     setWeakTopics([]);
     setActiveQuizFilter(null);
   };
-
-  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
 
   const handleStartSpecificQuiz = async (sectionId: string, topic: string) => {
     // Scroll to quiz section
@@ -158,20 +149,6 @@ function AppContent() {
     
     if (existingQuestions.length > 0) {
       setCurrentQuestions(existingQuestions);
-    } else {
-      // 2. Fallback: Generate questions for this specific topic using AI
-      setIsGeneratingQuiz(true);
-      setCurrentQuestions([]); // Clear current questions while loading
-      try {
-        const newQuestions = await generateAdaptiveQuiz([topic], knowledgeBaseContext);
-        if (newQuestions && newQuestions.length > 0) {
-          setCurrentQuestions(newQuestions);
-        }
-      } catch (error) {
-        console.error("Error generating specific quiz:", error);
-      } finally {
-        setIsGeneratingQuiz(false);
-      }
     }
   };
 
@@ -280,7 +257,7 @@ function AppContent() {
               questions={currentQuestions} 
               onLocateKnowledge={handleLocateKnowledge}
               onComplete={handleQuizComplete}
-              isLoading={isGeneratingQuiz}
+              isLoading={false}
               activeFilter={activeQuizFilter}
               onClearFilter={handleClearFilter}
             />
@@ -289,7 +266,7 @@ function AppContent() {
               score={score}
               total={currentQuestions.length}
               weakTopics={weakTopics}
-              knowledgeBaseContext={knowledgeBaseContext}
+              knowledgeBaseContext={JSON.stringify(filteredKnowledgeBase)}
               onStartAdaptiveQuiz={handleStartAdaptiveQuiz}
               onReset={handleReset}
             />
@@ -306,11 +283,11 @@ function AppContent() {
         {isDarkMode ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
       </button>
 
-      {/* Floating AI Chat */}
-      <ChatBox knowledgeBaseContext={knowledgeBaseContext} />
-
       {/* Admin Panel Modal */}
       {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
+
+      {/* AI Chat Widget */}
+      <AIChat knowledgeBase={filteredKnowledgeBase} />
     </div>
   );
 }

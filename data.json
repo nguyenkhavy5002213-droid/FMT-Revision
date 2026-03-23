@@ -9,23 +9,19 @@
   "subjects": {
     "obe": {
       "name": "Organizational Behavior (OBE)",
-      "sheetUrl": "https://docs.google.com/spreadsheets/d/1Nqd43yAtTjbPySERlJu_82aqGfyH1yoUTq54X8pI_cw/edit?usp=sharing",
-      "docUrl": ""
+      "sheetUrl": "https://docs.google.com/spreadsheets/d/1Nqd43yAtTjbPySERlJu_82aqGfyH1yoUTq54X8pI_cw/edit?usp=sharing"
     },
     "ibm": {
       "name": "International Business Management (IBM)",
-      "sheetUrl": "",
-      "docUrl": "https://docs.google.com/document/d/1N1mjQTT67AGlqLB9ygCPqLOpSFwuwP8hAUNkgv4fw08/edit?usp=sharing"
+      "sheetUrl": ""
     },
     "shm": {
       "name": "Strategic Human Resource Management (SHM)",
-      "sheetUrl": "",
-      "docUrl": ""
+      "sheetUrl": ""
     },
     "bue": {
       "name": "Business Ethics (BUE)",
-      "sheetUrl": "",
-      "docUrl": ""
+      "sheetUrl": ""
     }
   }
 }

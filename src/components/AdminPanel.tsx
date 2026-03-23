@@ -11,7 +11,6 @@ interface Subject {
   id: string;
   name: string;
   sheetUrl: string;
-  docUrl: string;
 }
 
 export function AdminPanel({ onClose }: AdminPanelProps) {
@@ -19,11 +18,9 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
   const [sheetUrl, setSheetUrl] = useState('');
-  const [docUrl, setDocUrl] = useState('');
   const [newSubjectId, setNewSubjectId] = useState('');
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSheetUrl, setNewSheetUrl] = useState('');
-  const [newDocUrl, setNewDocUrl] = useState('');
   const [isAddingSubject, setIsAddingSubject] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -63,7 +60,6 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     const subject = subjectList.find(s => s.id === id);
     if (subject) {
       setSheetUrl(subject.sheetUrl || '');
-      setDocUrl(subject.docUrl || '');
       fetchEmails(id);
     }
   };
@@ -118,7 +114,6 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           sheetUrl, 
-          docUrl,
           subjectId: selectedSubjectId 
         })
       });
@@ -149,8 +144,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         body: JSON.stringify({ 
           id: newSubjectId, 
           name: newSubjectName,
-          sheetUrl: newSheetUrl,
-          docUrl: newDocUrl
+          sheetUrl: newSheetUrl
         })
       });
       if (res.ok) {
@@ -160,7 +154,6 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         setNewSubjectId('');
         setNewSubjectName('');
         setNewSheetUrl('');
-        setNewDocUrl('');
       }
     } catch (error) {
       console.error("Error adding subject:", error);
@@ -275,13 +268,6 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                         onChange={(e) => setNewSheetUrl(e.target.value)}
                         className="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                       />
-                      <input
-                        type="text"
-                        placeholder="Link Google Docx (Nội dung)"
-                        value={newDocUrl}
-                        onChange={(e) => setNewDocUrl(e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-                      />
                       <div className="flex gap-2">
                         <button type="submit" disabled={isSaving} className="flex-1 bg-theme-blue text-slate-800 font-bold text-xs py-1.5 rounded-md hover:bg-theme-blue/80">
                           {isSaving ? 'Đang lưu...' : 'Thêm'}
@@ -329,7 +315,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                     </div>
 
                     <form onSubmit={handleSaveSheet} className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                             Link Google Sheet (Whitelist)
@@ -349,33 +335,6 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                               <button
                                 type="button"
                                 onClick={() => setSheetUrl('')}
-                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Link Google Docx (Nội dung)
-                          </label>
-                          <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                              <BookOpen className="h-5 w-5 text-slate-400" />
-                            </div>
-                            <input
-                              type="text"
-                              value={docUrl}
-                              onChange={(e) => setDocUrl(e.target.value)}
-                              placeholder="https://docs.google.com/document/d/..."
-                              className="block w-full pl-10 pr-10 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-theme-blue focus:border-theme-blue transition-all sm:text-sm"
-                            />
-                            {docUrl && (
-                              <button
-                                type="button"
-                                onClick={() => setDocUrl('')}
                                 className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                               >
                                 <X className="w-4 h-4" />

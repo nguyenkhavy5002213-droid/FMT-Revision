@@ -161,91 +161,6 @@ async function startServer() {
     }
   });
 
-  app.post('/api/subjects/sync/:id', async (req, res, next) => {
-    try {
-      const { id } = req.params;
-      const { docUrl, adminEmail } = req.body;
-
-      if (adminEmail !== ADMIN_EMAIL && adminEmail !== 'nguyenkhavy5002213@gmail.com') {
-        return res.status(403).json({ error: 'Unauthorized' });
-      }
-
-      const data = await readData();
-      const subject = data.subjects[id];
-      const url = docUrl || subject?.docUrl;
-
-      if (!url) return res.status(400).json({ error: 'No Content URL (Doc/Sheet) provided' });
-
-      // 1. Fetch raw data from Google Docs or Sheets
-      let rawText = "";
-      console.log(`Attempting to fetch raw text for ${id} from URL: ${url}`);
-
-      if (url.includes('docs.google.com/document')) {
-        const docId = url.match(/\/d\/([a-zA-Z0-9-_]+)/)?.[1];
-        if (!docId) throw new Error('Could not extract Document ID from URL');
-        
-        const exportUrl = `https://docs.google.com/document/d/${docId}/export?format=txt`;
-        console.log(`Fetching Doc from: ${exportUrl}`);
-        const response = await fetch(exportUrl);
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) {
-            throw new Error('Tài liệu Google Doc không được chia sẻ công khai. Vui lòng chọn "Bất kỳ ai có liên kết đều có thể xem".');
-          }
-          throw new Error(`Failed to fetch Google Doc content (Status: ${response.status})`);
-        }
-        rawText = await response.text();
-      } else if (url.includes('docs.google.com/spreadsheets')) {
-        const sheetId = url.match(/\/d\/([a-zA-Z0-9-_]+)/)?.[1];
-        if (!sheetId) throw new Error('Could not extract Sheet ID from URL');
-        
-        // Try multiple export formats for robustness
-        const exportUrls = [
-          `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`,
-          `https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv`,
-          `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`
-        ];
-
-        let lastError = null;
-        for (const exportUrl of exportUrls) {
-          try {
-            console.log(`Trying Sheet export URL: ${exportUrl}`);
-            const response = await fetch(exportUrl);
-            if (response.ok) {
-              const text = await response.text();
-              if (text && !text.includes('<!DOCTYPE html>')) {
-                rawText = text;
-                break;
-              }
-            } else if (response.status === 401 || response.status === 403) {
-              lastError = 'Tài liệu Google Sheet không được chia sẻ công khai. Vui lòng chọn "Bất kỳ ai có liên kết đều có thể xem".';
-            }
-          } catch (e) {
-            lastError = e instanceof Error ? e.message : String(e);
-          }
-        }
-
-        if (!rawText) {
-          throw new Error(lastError || 'Không thể lấy dữ liệu từ Google Sheet. Vui lòng kiểm tra quyền chia sẻ.');
-        }
-      } else {
-        throw new Error('Unsupported URL format');
-      }
-
-      const currentContent = await readContent();
-      const existingChapters = currentContent[id]?.chapters || [];
-
-      res.json({ 
-        success: true, 
-        rawText, 
-        existingChaptersSummary: existingChapters.map((c: any) => ({ id: c.id, title: c.title })),
-        subjectName: subject?.name || id
-      });
-    } catch (e) {
-      console.error('Fetch Error:', e);
-      res.status(500).json({ error: e instanceof Error ? e.message : 'Failed to fetch document content' });
-    }
-  });
-
   app.post('/api/subjects/save-content/:id', async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -271,8 +186,7 @@ async function startServer() {
       const subjects = Object.keys(data.subjects).map(id => ({
         id,
         name: data.subjects[id].name,
-        sheetUrl: data.subjects[id].sheetUrl,
-        docUrl: data.subjects[id].docUrl || ''
+        sheetUrl: data.subjects[id].sheetUrl
       }));
       res.json({ subjects });
     } catch (e) {
@@ -282,7 +196,7 @@ async function startServer() {
 
   app.post('/api/subjects', async (req, res, next) => {
     try {
-      const { id, name, sheetUrl, docUrl } = req.body;
+      const { id, name, sheetUrl } = req.body;
       if (!id || !name) {
         return res.status(400).json({ error: 'ID and name are required' });
       }
@@ -290,8 +204,7 @@ async function startServer() {
       const data = await readData();
       data.subjects[id] = {
         name,
-        sheetUrl: sheetUrl || (data.subjects[id] ? data.subjects[id].sheetUrl : ''),
-        docUrl: docUrl || (data.subjects[id] ? data.subjects[id].docUrl : '')
+        sheetUrl: sheetUrl || (data.subjects[id] ? data.subjects[id].sheetUrl : '')
       };
       await writeData(data);
       
@@ -320,8 +233,7 @@ async function startServer() {
       const data = await readData();
       const subject = data.subjects[subjectId];
       res.json({ 
-        sheetUrl: subject ? subject.sheetUrl : '',
-        docUrl: subject ? subject.docUrl : ''
+        sheetUrl: subject ? subject.sheetUrl : ''
       });
     } catch (e) {
       next(e);
@@ -330,13 +242,12 @@ async function startServer() {
 
   app.post('/api/settings/sheet', async (req, res, next) => {
     try {
-      const { sheetUrl, docUrl, subjectId = 'obe' } = req.body;
+      const { sheetUrl, subjectId = 'obe' } = req.body;
       const data = await readData();
       if (!data.subjects[subjectId]) {
         return res.status(404).json({ error: 'Subject not found' });
       }
       if (sheetUrl !== undefined) data.subjects[subjectId].sheetUrl = sheetUrl;
-      if (docUrl !== undefined) data.subjects[subjectId].docUrl = docUrl;
       await writeData(data);
       
       // Invalidate cache when sheet URL changes
@@ -364,6 +275,21 @@ async function startServer() {
       let isAllowed = isAdmin;
 
       const data = await readData();
+
+      if (subjectId === 'vocabulary') {
+        if (!isAdmin) {
+          return res.json({ success: false, error: 'Chỉ Admin mới có quyền truy cập Quản lý Từ Vựng.' });
+        }
+        
+        const token = Date.now().toString(36) + Math.random().toString(36).substring(2);
+        if (!data.sessions) data.sessions = {};
+        const sessionKey = `${normalizedEmail}_vocabulary`;
+        data.sessions[sessionKey] = { token, lastActive: Date.now(), subjectId: 'vocabulary' };
+        await writeData(data);
+        
+        return res.json({ success: true, email: normalizedEmail, token, isAdmin: true, subjectId: 'vocabulary', subjectName: 'Quản lý Từ Vựng' });
+      }
+
       const subject = data.subjects[subjectId];
 
       if (!subject) {
@@ -494,6 +420,31 @@ async function startServer() {
     }
   });
 
+  app.get('/api/vocabulary/:email', async (req, res, next) => {
+    try {
+      const { email } = req.params;
+      const data = await readData();
+      if (!data.vocabulary) data.vocabulary = {};
+      res.json({ notebooks: data.vocabulary[email] || [] });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  app.post('/api/vocabulary/:email', async (req, res, next) => {
+    try {
+      const { email } = req.params;
+      const { notebooks } = req.body;
+      const data = await readData();
+      if (!data.vocabulary) data.vocabulary = {};
+      data.vocabulary[email] = notebooks;
+      await writeData(data);
+      res.json({ success: true });
+    } catch (e) {
+      next(e);
+    }
+  });
+
   // Vite middleware
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -504,7 +455,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

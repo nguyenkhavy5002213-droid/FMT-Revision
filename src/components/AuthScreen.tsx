@@ -38,7 +38,7 @@ export function AuthScreen() {
     clearError();
     
     try {
-      await login(email, selectedSubject.id);
+      await login(email, '', selectedSubject.id);
     } catch (error: any) {
       console.error("Lỗi đăng nhập:", error);
     } finally {
@@ -77,19 +77,23 @@ export function AuthScreen() {
                   <Loader2 className="w-8 h-8 animate-spin text-theme-blue" />
                 </div>
               ) : subjects.length > 0 ? (
-                subjects.map(subject => (
-                  <button
-                    key={subject.id}
-                    onClick={() => {
-                      setSelectedSubject(subject);
-                      clearError();
-                    }}
-                    className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-theme-blue hover:bg-theme-blue/10 dark:hover:bg-slate-700 transition-all text-left"
-                  >
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{subject.name}</span>
-                    <ArrowRight className="w-5 h-5 text-slate-400" />
-                  </button>
-                ))
+                <>
+                  {subjects.map(subject => (
+                    <button
+                      key={subject.id}
+                      onClick={() => {
+                        setSelectedSubject(subject);
+                        clearError();
+                      }}
+                      className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-theme-blue hover:bg-theme-blue/10 dark:hover:bg-slate-700 transition-all text-left"
+                    >
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{subject.name}</span>
+                      <ArrowRight className="w-5 h-5 text-slate-400" />
+                    </button>
+                  ))}
+                  
+
+                </>
               ) : (
                 <p className="text-center text-slate-500">Chưa có môn học nào được cấu hình.</p>
               )}

@@ -11,7 +11,7 @@ interface AuthContextType {
   user: User | null;
   isAdmin: boolean;
   loading: boolean;
-  login: (email: string, subjectId: string) => Promise<void>;
+  login: (email: string, password: string, subjectId: string) => Promise<void>;
   logout: () => Promise<void>;
   authError: string | null;
   clearError: () => void;
@@ -105,13 +105,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(interval);
   }, []);
 
-  const login = async (email: string, subjectId: string) => {
+  const login = async (email: string, password: string, subjectId: string) => {
     clearError();
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, subjectId })
+        body: JSON.stringify({ email, password, subjectId })
       });
       
       const contentType = res.headers.get('content-type');

@@ -103,11 +103,13 @@ function AppContent() {
   }, [chapterQuestions]);
 
   useEffect(() => {
+    console.log('Theme changed:', isDarkMode ? 'dark' : 'light');
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
+    console.log('Current html classes:', document.documentElement.className);
     localStorage.setItem('darkMode', isDarkMode.toString());
   }, [isDarkMode]);
 

@@ -109,7 +109,7 @@ function SectionItem({ section, highlightedId, onStartSpecificQuiz }: { section:
       {isOpen && (
         <div className="p-5 border-t border-slate-100 dark:border-slate-700">
           {section.content && (
-            <div className="markdown-body text-slate-700 dark:text-slate-300 mb-5 leading-relaxed">
+            <div className="markdown-body prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 mb-5 leading-relaxed">
               <ReactMarkdown>{removeCitations(section.content)}</ReactMarkdown>
             </div>
           )}
@@ -169,7 +169,7 @@ function SubSectionItem({ sub, highlightedId }: { sub: SubSection; highlightedId
       {isOpen && (
         <div className="p-4 pt-0">
           <div className="pl-8">
-            <div className="markdown-body text-slate-600 dark:text-slate-300 leading-relaxed text-sm">
+            <div className="markdown-body prose prose-sm dark:prose-invert max-w-none text-slate-600 dark:text-slate-300 leading-relaxed text-sm">
               <ReactMarkdown>{removeCitations(sub.content)}</ReactMarkdown>
             </div>
             

@@ -1,22 +1,36 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Use the platform-provided API key
-const API_KEY = process.env.GEMINI_API_KEY;
+// Collect all available Gemini API keys for rotation
+const API_KEYS = [
+  process.env.GEMINI_API_KEY,
+  process.env.GEMINI_API_KEY_1 || "AIzaSyAUwMZuoZGgBwnsxSkI2nDn0gs4Cp1cWsc",
+  process.env.GEMINI_API_KEY_2 || "AIzaSyAU0826A38CCbqLmEowZ8aVFng-opYuQqI",
+  process.env.GEMINI_API_KEY_3 || "AIzaSyBHweJxoPBNCeeL9DXatebf-7ajs449USM",
+  process.env.GEMINI_API_KEY_4 || "AIzaSyBKshPP4I_x5IJX-WFQ9sveYnQiaBCcuoA"
+].filter(Boolean) as string[];
 
-if (!API_KEY) {
-  console.error("GEMINI_API_KEY is not defined in the environment.");
+let currentKeyIndex = 0;
+
+if (API_KEYS.length === 0) {
+  console.error("No GEMINI_API_KEYS defined in the environment.");
 }
 
 function getAIInstance() {
-  if (!API_KEY) {
+  if (API_KEYS.length === 0) {
     throw new Error("Không tìm thấy API Key. Vui lòng kiểm tra cấu hình trong Settings.");
   }
-  return new GoogleGenAI({ apiKey: API_KEY });
+  
+  // Get current key and rotate for next call
+  const apiKey = API_KEYS[currentKeyIndex];
+  currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+  
+  console.log(`Using API Key index ${currentKeyIndex - 1 < 0 ? API_KEYS.length - 1 : currentKeyIndex - 1} for rotation.`);
+  return new GoogleGenAI({ apiKey });
 }
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export async function chatWithAI(message: string, history: any[], knowledgeBaseContext: string) {
+export async function chatWithAI(message: string, history: any[], knowledgeBaseContext: string, retryCount = 0) {
   const ai = getAIInstance();
   try {
     // Format history for the SDK
@@ -48,15 +62,21 @@ export async function chatWithAI(message: string, history: any[], knowledgeBaseC
   } catch (error: any) {
     console.error("Chat error:", error);
     
+    // If rate limited and we have more keys to try
+    if ((error?.status === "RESOURCE_EXHAUSTED" || error?.message?.includes("429")) && retryCount < API_KEYS.length - 1) {
+      console.warn(`Rate limit hit. Retrying with next key... (Attempt ${retryCount + 1})`);
+      return chatWithAI(message, history, knowledgeBaseContext, retryCount + 1);
+    }
+    
     if (error?.status === "RESOURCE_EXHAUSTED" || error?.message?.includes("429")) {
-      throw new Error("Hạn mức API đã hết. Vui lòng thử lại sau một lát hoặc kiểm tra cấu hình API Key.");
+      throw new Error("Hạn mức API của tất cả các key đã hết. Vui lòng thử lại sau một lát.");
     }
     
     throw new Error(error?.message || "Không thể kết nối với AI. Vui lòng thử lại sau.");
   }
 }
 
-export async function generateAdaptiveQuiz(weakTopics: string[], knowledgeBaseContext: string) {
+export async function generateAdaptiveQuiz(weakTopics: string[], knowledgeBaseContext: string, retryCount = 0): Promise<any[]> {
   const ai = getAIInstance();
   try {
     const prompt = `Based on the following knowledge base context, generate at least 5 new multiple-choice questions for EACH of these weak topics: ${weakTopics.join(', ')}.
@@ -124,6 +144,13 @@ export async function generateAdaptiveQuiz(weakTopics: string[], knowledgeBaseCo
     return JSON.parse(jsonStr);
   } catch (error: any) {
     console.error("Quiz generation error:", error);
+    
+    // If rate limited and we have more keys to try
+    if ((error?.status === "RESOURCE_EXHAUSTED" || error?.message?.includes("429")) && retryCount < API_KEYS.length - 1) {
+      console.warn(`Rate limit hit during quiz generation. Retrying with next key... (Attempt ${retryCount + 1})`);
+      return generateAdaptiveQuiz(weakTopics, knowledgeBaseContext, retryCount + 1);
+    }
+    
     return [];
   }
 }

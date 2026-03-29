@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Lightbulb, BookMarked, Target, BrainCircuit } from 'lucide-react';
 import { Section, SubSection } from '../data';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -110,7 +111,7 @@ function SectionItem({ section, highlightedId, onStartSpecificQuiz }: { section:
         <div className="p-5 border-t border-slate-100 dark:border-slate-700">
           {section.content && (
             <div className="markdown-body prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 mb-5 leading-relaxed">
-              <ReactMarkdown>{removeCitations(section.content)}</ReactMarkdown>
+              <ReactMarkdown rehypePlugins={[rehypeRaw]}>{removeCitations(section.content)}</ReactMarkdown>
             </div>
           )}
           <div className="space-y-4 pl-2 border-l-2 border-slate-100 dark:border-slate-700 ml-2">
@@ -170,7 +171,7 @@ function SubSectionItem({ sub, highlightedId }: { sub: SubSection; highlightedId
         <div className="p-4 pt-0">
           <div className="pl-8">
             <div className="markdown-body prose prose-sm dark:prose-invert max-w-none text-slate-600 dark:text-slate-300 leading-relaxed text-sm">
-              <ReactMarkdown>{removeCitations(sub.content)}</ReactMarkdown>
+              <ReactMarkdown rehypePlugins={[rehypeRaw]}>{removeCitations(sub.content)}</ReactMarkdown>
             </div>
             
             {sub.example && (
@@ -186,7 +187,7 @@ function SubSectionItem({ sub, highlightedId }: { sub: SubSection; highlightedId
                 {showExample && (
                   <div className="mt-3 p-4 bg-theme-yellow/30 dark:bg-amber-900/20 text-slate-800 dark:text-amber-100 rounded-xl text-sm border border-theme-yellow/60 dark:border-amber-700/50 leading-relaxed shadow-sm">
                     <div className="markdown-body">
-                      <ReactMarkdown>{removeCitations(sub.example)}</ReactMarkdown>
+                      <ReactMarkdown rehypePlugins={[rehypeRaw]}>{removeCitations(sub.example)}</ReactMarkdown>
                     </div>
                   </div>
                 )}

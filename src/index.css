@@ -23,6 +23,13 @@ html.dark {
   color-scheme: dark;
 }
 
+@layer base {
+  u {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;

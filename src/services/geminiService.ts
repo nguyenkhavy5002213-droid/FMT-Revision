@@ -1,12 +1,13 @@
+/// <reference types="vite/client" />
 import { GoogleGenAI, Type } from "@google/genai";
 
 // Collect all available Gemini API keys for rotation
 const API_KEYS = [
-  process.env.GEMINI_API_KEY,
-  process.env.GEMINI_API_KEY_1 || "AIzaSyAUwMZuoZGgBwnsxSkI2nDn0gs4Cp1cWsc",
-  process.env.GEMINI_API_KEY_2 || "AIzaSyAU0826A38CCbqLmEowZ8aVFng-opYuQqI",
-  process.env.GEMINI_API_KEY_3 || "AIzaSyBHweJxoPBNCeeL9DXatebf-7ajs449USM",
-  process.env.GEMINI_API_KEY_4 || "AIzaSyBKshPP4I_x5IJX-WFQ9sveYnQiaBCcuoA"
+  import.meta.env.VITE_GEMINI_API_KEY,
+  import.meta.env.VITE_GEMINI_API_KEY_1 || "AIzaSyAUwMZuoZGgBwnsxSkI2nDn0gs4Cp1cWsc",
+  import.meta.env.VITE_GEMINI_API_KEY_2 || "AIzaSyAU0826A38CCbqLmEowZ8aVFng-opYuQqI",
+  import.meta.env.VITE_GEMINI_API_KEY_3 || "AIzaSyBHweJxoPBNCeeL9DXatebf-7ajs449USM",
+  import.meta.env.VITE_GEMINI_API_KEY_4 || "AIzaSyBKshPP4I_x5IJX-WFQ9sveYnQiaBCcuoA"
 ].filter(Boolean) as string[];
 
 let currentKeyIndex = 0;
@@ -39,9 +40,11 @@ export async function chatWithAI(message: string, history: any[], knowledgeBaseC
       parts: [{ text: msg.content }]
     }));
 
-    const chat = ai.chats.create({
+    const contents = [...formattedHistory, { role: 'user', parts: [{ text: message }] }];
+
+    const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      history: formattedHistory,
+      contents: contents,
       config: {
         systemInstruction: `You are an expert tutor in Organizational Behavior (OB). 
         Your goal is to help the user understand the concepts provided in the knowledge base.
@@ -54,7 +57,6 @@ export async function chatWithAI(message: string, history: any[], knowledgeBaseC
       },
     });
 
-    const response = await chat.sendMessage({ message });
     if (!response.text) {
       throw new Error("AI trả về phản hồi rỗng.");
     }
@@ -110,38 +112,25 @@ export async function generateAdaptiveQuiz(weakTopics: string[], knowledgeBaseCo
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              id: { type: Type.STRING },
-              questionEn: { type: Type.STRING },
-              questionVi: { type: Type.STRING },
-              options: {
-                type: Type.OBJECT,
-                properties: {
-                  A: { type: Type.OBJECT, properties: { en: { type: Type.STRING }, vi: { type: Type.STRING } }, required: ["en", "vi"] },
-                  B: { type: Type.OBJECT, properties: { en: { type: Type.STRING }, vi: { type: Type.STRING } }, required: ["en", "vi"] },
-                  C: { type: Type.OBJECT, properties: { en: { type: Type.STRING }, vi: { type: Type.STRING } }, required: ["en", "vi"] },
-                  D: { type: Type.OBJECT, properties: { en: { type: Type.STRING }, vi: { type: Type.STRING } }, required: ["en", "vi"] }
-                },
-                required: ["A", "B", "C", "D"]
-              },
-              correctAnswer: { type: Type.STRING },
-              explanationEn: { type: Type.STRING },
-              explanationVi: { type: Type.STRING },
-              relatedSectionId: { type: Type.STRING },
-              topic: { type: Type.STRING }
-            },
-            required: ["id", "questionEn", "questionVi", "options", "correctAnswer", "explanationEn", "explanationVi", "relatedSectionId", "topic"]
-          }
-        }
       }
     });
 
     const jsonStr = response.text?.trim() || "[]";
-    return JSON.parse(jsonStr);
+    let parsedJson = [];
+    try {
+      // Handle potential markdown code blocks
+      let cleanJsonStr = jsonStr;
+      if (cleanJsonStr.startsWith('```json')) {
+        cleanJsonStr = cleanJsonStr.replace(/^```json\n/, '').replace(/\n```$/, '');
+      } else if (cleanJsonStr.startsWith('```')) {
+        cleanJsonStr = cleanJsonStr.replace(/^```\n/, '').replace(/\n```$/, '');
+      }
+      parsedJson = JSON.parse(cleanJsonStr);
+    } catch (parseError) {
+      console.error("Failed to parse JSON:", jsonStr);
+      throw new Error("AI trả về dữ liệu không hợp lệ.");
+    }
+    return parsedJson;
   } catch (error: any) {
     console.error("Quiz generation error:", error);
     
@@ -151,7 +140,7 @@ export async function generateAdaptiveQuiz(weakTopics: string[], knowledgeBaseCo
       return generateAdaptiveQuiz(weakTopics, knowledgeBaseContext, retryCount + 1);
     }
     
-    return [];
+    throw error; // Throw the error so the UI can display it
   }
 }
 

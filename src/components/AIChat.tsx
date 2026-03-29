@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Loader2, Bot, User } from 'lucide-react';
 import { chatWithAI } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import { Section } from '../data';
 
 interface Message {
@@ -127,7 +128,7 @@ export function AIChat({ knowledgeBase }: AIChatProps) {
                   <p className="text-sm">{msg.content}</p>
                 ) : (
                   <div className="markdown-body text-sm prose-sm dark:prose-invert">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown rehypePlugins={[rehypeRaw]}>{msg.content}</ReactMarkdown>
                   </div>
                 )}
               </div>
